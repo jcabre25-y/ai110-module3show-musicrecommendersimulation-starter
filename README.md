@@ -139,11 +139,54 @@ Terminal screenshot:
 
 ## Experiments You Tried
 
-Use this section to document the experiments you ran. For example:
+I stress-tested the recommender with four profiles:
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+- `High-Energy Pop`: favorite genre `pop`, favorite mood `happy`, target energy `0.80`, prefers less acoustic tracks
+- `Chill Lofi`: favorite genre `lofi`, favorite mood `focused`, target energy `0.40`, prefers more acoustic tracks
+- `Deep Intense Rock`: favorite genre `rock`, favorite mood `intense`, target energy `0.92`, prefers less acoustic tracks
+- `Edge Case: Sad But High Energy`: favorite genre `ambient`, favorite mood `sad`, target energy `0.90`, prefers more acoustic tracks
+
+The first three profiles behaved as expected. `Sunrise City` ranked first for the high-energy pop user, `Focus Flow` ranked first for the chill lofi user, and `Storm Runner` ranked first for the deep intense rock user. This suggests that the current weighted scoring rule works reasonably well when the profile lines up with songs that clearly exist in the dataset.
+
+Compared to my own musical intuition, these results mostly feel right. For the `Chill Lofi` profile, `Focus Flow` ranking first makes sense because it matches the user's preferred genre and mood exactly, has the exact target energy of `0.40`, and also fits the user's acoustic preference. That combination makes it feel like the clearest example of the intended vibe. `Midnight Coding` and `Library Rain` also feel like reasonable follow-up recommendations because they are still lofi, lower-energy, and more acoustic.
+
+Using the current weights in `recommender.py`, `Focus Flow` ranked first because it received the maximum possible score: `+2.0` for genre match, `+1.0` for mood match, `+2.0` for perfect energy closeness, and `+0.5` for matching the acoustic preference, for a total of `5.5`. This is a helpful example of how the scoring rule turns user preferences into a final ranking.
+
+The edge-case profile exposed a weakness. Because the dataset does not contain a strong `sad` song and the algorithm only uses exact mood matching plus energy closeness, it still recommended songs that were high-energy even when their emotional tone was not especially sad. This shows that the current system can be "tricked" by conflicting preferences and may overweight energy when mood does not have a match.
+
+One thing I watched for was whether the same song would dominate every profile. That did not happen in the first three tests, which suggests the current genre weight is not completely overpowering the rest of the system. However, because the dataset is still small, some songs can appear across multiple profiles when their energy values are close to many targets. That means the recommender still has limited variety and could become repetitive without a larger catalog or more features.
+
+I also ran a small data experiment by halving the genre weight and doubling the energy weight. That changed genre from `+2.0` to `+1.0`, while energy changed from a maximum of `+2.0` to a maximum of `+4.0` using the same closeness formula. The math still worked correctly, but the ranking became much more sensitive to energy proximity.
+
+This made the recommendations more different than more accurate. The top songs for the first three profiles stayed mostly reasonable, but songs with similar energy values started climbing higher even when they were weaker matches in genre or mood. The biggest change showed up in the edge-case profile: instead of favoring `Spacewalk Thoughts` for its ambient genre match, the system switched to mostly high-energy songs like `Storm Runner` and `Gym Hero`. That suggests the experiment reduced the model's ability to reflect a user's broader taste and made energy too dominant.
+
+Evaluation screenshots:
+
+High-Energy Pop and Chill Lofi:
+
+![Evaluation output 1](./Screenshot%202026-04-07%20at%2012.09.44%E2%80%AFAM.png)
+
+Deep Intense Rock:
+
+![Evaluation output 2](./Screenshot%202026-04-07%20at%2012.09.56%E2%80%AFAM.png)
+
+Edge Case: Sad But High Energy:
+
+![Evaluation output 3](./Screenshot%202026-04-07%20at%2012.10.08%E2%80%AFAM.png)
+
+Prompt used for a new "System Evaluation" chat:
+
+```text
+#codebase
+I have a simple content-based music recommender that scores songs using genre match, mood match, energy closeness, and a small acousticness bonus.
+
+Please suggest 4 to 6 adversarial or edge-case user profiles that could reveal weaknesses in my scoring logic. I want profiles that might create conflicting signals, such as very high energy but a sad mood, or a genre preference that does not exist strongly in the dataset.
+
+For each profile, explain:
+- why it is a useful test
+- what kind of incorrect or surprising recommendation behavior it might expose
+- what this could teach me about bias or oversimplification in my system
+```
 
 ---
 
