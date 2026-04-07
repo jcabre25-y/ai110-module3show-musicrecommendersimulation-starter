@@ -17,17 +17,52 @@ Replace this paragraph with your own summary of what your version does
 
 ## How The System Works
 
-Explain your design in plain language.
+Real-world recommendation systems often combine many kinds of data, including user behavior, patterns from similar users, and features of the songs or videos themselves. At a large scale, platforms like Spotify and YouTube use hybrid systems that combine collaborative filtering with content-based signals to predict what a user may enjoy next. My version is much simpler and focuses on content-based matching. It compares a user's preferences to each song's attributes and gives higher scores to songs that match the user's favorite genre and mood and are close to the user's target energy. It will prioritize transparent, easy-to-explain recommendations over complex machine learning.
 
-Some prompts to answer:
+This simulation uses the following features:
 
-- What features does each `Song` use in your system
-  - For example: genre, mood, energy, tempo
-- What information does your `UserProfile` store
-- How does your `Recommender` compute a score for each song
-- How do you choose which songs to recommend
+- `Song`: `genre`, `mood`, `energy`, `tempo_bpm`, `valence`, `danceability`, `acousticness`
+- `UserProfile`: `favorite_genre`, `favorite_mood`, `target_energy`, `likes_acoustic`
 
-You can include a simple diagram or bullet list if helpful.
+The recommender computes a score for each song using a weighted scoring rule. Songs get strong points for matching the user's genre, slightly smaller points for matching mood, and partial points when the song's energy is close to the user's target energy. Acoustic preference can add a small bonus. After each song is scored, the system ranks the songs from highest to lowest score and recommends the top results.
+
+One example taste profile for this simulation is a listener who prefers lofi, likes focused or calm music, wants medium-low energy, and tends to like more acoustic or soft textures. A matching profile dictionary could look like this: `{"favorite_genre": "lofi", "favorite_mood": "focused", "target_energy": 0.40, "target_tempo_bpm": 80, "target_valence": 0.58, "likes_acoustic": true}`. This profile should be strong enough to separate something like intense rock from chill lofi because those categories differ across multiple features at once. Rock tracks in this dataset tend to have much higher energy and tempo and a more aggressive mood, while lofi tracks tend to be calmer, softer, and more acoustic. If the profile only used genre, it would be too narrow, but combining genre, mood, energy, tempo, and acoustic preference gives the recommender enough information to capture a clearer musical vibe.
+
+The data flow of the system can be summarized as: Input (`UserProfile`) -> Process (loop through every song in the CSV and score each one) -> Output (sort by score and return the top `k` recommendations). Each song is judged individually against the same user preferences, then the final ranking compares all of those song scores to decide which songs should be recommended first.
+
+```mermaid
+flowchart TD
+    A([Start]) --> B[User enters preferences<br/>genre, mood, target_energy, likes_acoustic]
+    B --> C[Load songs from data/songs.csv]
+    C --> D[Initialize empty results list]
+    D --> E{More songs to score?}
+
+    E -- Yes --> F[Get next song]
+    F --> G[Compare song genre to favorite_genre]
+    G --> H[Compare song mood to favorite_mood]
+    H --> I[Calculate energy closeness<br/>1 - abs(song.energy - target_energy)]
+    I --> J{Does acousticness match<br/>the user's preference?}
+    J -- Yes --> K[Add acoustic bonus]
+    J -- No --> L[Compute total score]
+    K --> L
+    L --> M[Store song, score, and explanation]
+    M --> E
+
+    E -- No --> N[Sort all songs by score<br/>highest to lowest]
+    N --> O[Return top K recommendations]
+    O --> P([End])
+```
+
+Finalized algorithm recipe:
+
+- `+2.0` points for a genre match
+- `+1.0` point for a mood match
+- up to `+2.0` points for energy closeness using `2.0 * max(0, 1 - abs(song.energy - target_energy))`
+- `+0.5` points if the song's acousticness matches the user's acoustic preference
+
+This means the recommender rewards both exact matches and near matches. Genre gets the most weight because it is the broadest taste signal, mood refines the emotional feel, energy captures how calm or intense the song feels, and acousticness acts as a smaller supporting vibe feature.
+
+This plan now includes an expanded dataset with 18 songs, a specific test user profile, and a weighted scoring rule that can be implemented directly in code. One likely bias in this system is that it may over-prioritize genre and miss songs from other genres that still match the user's mood or energy very well. It may also oversimplify musical taste by assuming that one profile can fully represent what a listener wants in every context.
 
 ---
 
@@ -63,6 +98,42 @@ pytest
 ```
 
 You can add more tests in `tests/test_recommender.py`.
+
+### CLI Verification
+
+Running `python -m src.main` with the default `pop` / `happy` profile produces readable recommendations that show the song title, score, and explanation:
+
+```text
+Loaded songs: 18
+
+Top recommendations:
+
+1. Sunrise City by Neon Echo
+   Score: 5.46
+   Reasons: genre match (+2.0), mood match (+1.0), energy closeness (+1.96), acoustic preference match (+0.5)
+
+2. Gym Hero by Max Pulse
+   Score: 4.24
+   Reasons: genre match (+2.0), energy closeness (+1.74), acoustic preference match (+0.5)
+
+3. Rooftop Lights by Indigo Parade
+   Score: 3.42
+   Reasons: mood match (+1.0), energy closeness (+1.92), acoustic preference match (+0.5)
+
+4. Pixel Arcade by Bit Runner
+   Score: 2.48
+   Reasons: energy closeness (+1.98), acoustic preference match (+0.5)
+
+5. Night Drive Loop by Neon Echo
+   Score: 2.40
+   Reasons: energy closeness (+1.90), acoustic preference match (+0.5)
+```
+
+This output matches expectations for a user who likes energetic, upbeat pop. The strongest recommendation is `Sunrise City` because it matches both genre and mood and has energy close to the user's target.
+
+Terminal screenshot:
+
+![CLI recommendation output](./Screenshot%202026-04-06%20at%2011.58.08%E2%80%AFPM.png)
 
 ---
 
@@ -208,4 +279,3 @@ A few sentences about what you learned:
 - What surprised you about how your system behaved
 - How did building this change how you think about real music recommenders
 - Where do you think human judgment still matters, even if the model seems "smart"
-
